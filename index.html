@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover so the shell can pay out safe-area insets on notched phones. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#091218">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="NEON VAULT — a solo cyberpunk heist in six floors. Pick a specialist, roll a d20, breach the Meridian.">
+<title>NEON VAULT — A heist in six floors</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="styles.css">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Neon Vault">
+<meta property="og:title" content="NEON VAULT">
+<meta property="og:description" content="A heist in six floors. One crew. No clean hands.">
+<meta property="og:type" content="website">
+</head>
+<body>
+<!-- app.js owns everything inside #app; the shell ships it empty by contract. -->
+<div id="app"></div>
+<noscript>
+  <div class="noscript-card">
+    <p class="eyebrow">SIGNAL LOST</p>
+    <h1>NEON VAULT needs JavaScript.</h1>
+    <p>The run is played entirely in your browser — no server, no account, nothing sent anywhere. Enable JavaScript and the Meridian is waiting.</p>
+  </div>
+</noscript>
+<script type="module" src="app.js"></script>
+</body>
+</html>

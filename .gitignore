@@ -1,0 +1,7 @@
+node_modules/
+evidence/
+BUILD.md
+UI-CONTRACT.md
+*.log
+*.tmp
+.DS_Store
