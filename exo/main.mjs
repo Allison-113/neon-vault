@@ -1,3 +1,4 @@
+import { SUITS, drawSuitPortrait } from './sprites.mjs';
 import { createState, step, useModule } from './sim.mjs';
 import { createRenderer } from './render.mjs';
 import { WORLD } from './world.mjs';
@@ -5,11 +6,33 @@ import { WORLD } from './world.mjs';
 const $=s=>document.querySelector(s);
 const canvas=$('#game'),renderer=createRenderer(canvas);
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
-const modules={magnet:{label:'MAGNET',cost:8,hint:'Pull nearby scrap toward your suit. Use again to throw it.'},grapple:{label:'GRAPPLE',cost:16,hint:'Face a golden anchor overhead and zip toward it. Use again to let go.'},emp:{label:'EMP',cost:32,hint:'Disrupt the drone. Electrify scrap. Then switch modules and try something.'}};
+const modules={magnet:{label:'MAGNET',cost:8,hint:'Pull nearby scrap toward your suit. Use again to throw it.'},grapple:{label:'GRAPPLE',cost:16,hint:'Face a golden anchor overhead and zip toward it. Use again to let go.'},emp:{label:'EMP',cost:32,hint:'Disrupt the hound. Electrify scrap. Then switch modules and try something.'}};
 let state=createState(),selected='magnet',started=false,paused=false,winShown=false;
 let accumulator=0,last=performance.now(),jumpQueued=false,toastUntil=0,soundOn=false,audioContext=null;
 const input={left:false,right:false,jump:false},particles=[];
-const manual=$('#manual'),debrief=$('#debrief');
+const manual=$('#manual'),debrief=$('#debrief'),suitBay=$('#suit-bay');
+let suitId='infernex';
+try{const saved=localStorage.getItem('neon-exo-suit');if(SUITS.some(s=>s.id===saved))suitId=saved}catch{}
+function selectSuit(id){
+  const suit=SUITS.find(s=>s.id===id)||SUITS[0];suitId=suit.id;state.player.suitId=suitId;
+  try{localStorage.setItem('neon-exo-suit',suitId)}catch{}
+  $('#active-suit').textContent=suit.name;$('#suit-name').textContent=suit.name;$('#suit-role').textContent=suit.role;
+  $('#suit-number').textContent='FRAME '+String(SUITS.indexOf(suit)+1).padStart(2,'0');
+  $('#suit-portrait').setAttribute('aria-label',suit.name+' suit portrait');
+  drawSuitPortrait($('#suit-portrait'),suitId);
+  for(const button of document.querySelectorAll('[data-suit]'))button.setAttribute('aria-pressed',String(button.dataset.suit===suitId));
+}
+for(const suit of SUITS){
+  const button=document.createElement('button');button.type='button';button.dataset.suit=suit.id;button.className='suit-choice';button.style.setProperty('--suit-color',suit.color);button.setAttribute('aria-label',suit.name+' — '+suit.role);
+  const portrait=document.createElement('canvas');portrait.width=160;portrait.height=160;portrait.setAttribute('aria-hidden','true');
+  const label=document.createElement('span');label.textContent=suit.name;button.append(portrait,label);button.addEventListener('click',()=>selectSuit(suit.id));$('#suit-grid').append(button);drawSuitPortrait(portrait,suit.id);
+}
+selectSuit(suitId);
+function closeSuits(){suitBay.close();clearInput();last=performance.now();accumulator=0;canvas.focus({preventScroll:true})}
+$('#open-suits').addEventListener('click',()=>{clearInput();suitBay.showModal()});
+suitBay.querySelector('.close-dialog').addEventListener('click',closeSuits);
+$('#deploy-suit').addEventListener('click',()=>{closeSuits();if(!started)startGame();else toast(SUITS.find(s=>s.id===suitId).name+' frame online.')});
+suitBay.addEventListener('close',()=>{clearInput();last=performance.now();accumulator=0});
 const installNote=document.createElement('p');installNote.className='manual-note';installNote.textContent='On iPhone: open this page in Safari, tap Share → Add to Home Screen, enable Open as Web App if shown, then Add. Launch the new NEON EXO icon. An internet connection is still needed to load the game.';manual.querySelector('.dialog-inner').insertBefore(installNote,manual.querySelector('.close-manual'));
 const rng=(()=>{let x=1729;return()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296}})();
 
@@ -46,10 +69,10 @@ function consumeEvents(){
   }
   updateHUD();
 }
-function activate(){if(!started){startGame();return}if(manual.open||debrief.open)return;useModule(state,selected);consumeEvents()}
+function activate(){if(!started){startGame();return}if(manual.open||debrief.open||suitBay.open)return;useModule(state,selected);consumeEvents()}
 function clearInput(){input.left=input.right=input.jump=false;jumpQueued=false;for(const el of document.querySelectorAll('.pressed'))el.classList.remove('pressed')}
 function startGame(){started=true;$('#start').classList.add('hidden');document.body.classList.add('playing');canvas.focus({preventScroll:true});toast('Core signal east. The route is up to you.',3.7);last=performance.now();accumulator=0;}
-function resetGame(){state=createState();particles.length=0;winShown=false;clearInput();if(debrief.open)debrief.close();started=true;$('#start').classList.add('hidden');selectModule('magnet');toast('Fresh yard. Different bad idea?',3);last=performance.now();accumulator=0;canvas.focus({preventScroll:true})}
+function resetGame(){state=createState();state.player.suitId=suitId;particles.length=0;winShown=false;clearInput();if(debrief.open)debrief.close();started=true;$('#start').classList.add('hidden');selectModule('magnet');toast('Fresh yard. Different bad idea?',3);last=performance.now();accumulator=0;canvas.focus({preventScroll:true})}
 function showWin(){if(!state.won||debrief.open)return;clearInput();$('#debrief-stats').textContent=`${state.discoveries.length}/3 discoveries · ${state.stats.throws} throws · ${state.stats.grapples} grapples`;$('#debrief-message').textContent=state.discoveries.length===3?'Every discovery found. You made the suit your own.':state.discoveries.includes('sky-route')?'You took the high road. There are still stranger things to try with the scrap below.':'You found a way through. The catwalks and loose metal still have a few ideas left in them.';debrief.showModal()}
 function openHelp(){clearInput();manual.showModal()}
 function closeHelp(){manual.close();canvas.focus({preventScroll:true});last=performance.now()}
@@ -65,7 +88,7 @@ for(const name of ['left','right','jump']){
 }
 const keys={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'jump',KeyW:'jump'};
 document.addEventListener('keydown',event=>{
-  if(manual.open||debrief.open)return;
+  if(manual.open||debrief.open||suitBay.open)return;
   if(keys[event.code]){event.preventDefault();if(!started)startGame();input[keys[event.code]]=true;if(keys[event.code]==='jump'&&!event.repeat)jumpQueued=true;}
   if(['Digit1','Digit2','Digit3'].includes(event.code)){event.preventDefault();selectModule(['magnet','grapple','emp'][Number(event.code.at(-1))-1])}
   if(['KeyE','Space'].includes(event.code)){event.preventDefault();if(!event.repeat)activate()}
@@ -75,7 +98,7 @@ window.addEventListener('blur',clearInput);document.addEventListener('visibility
 new ResizeObserver(()=>renderer.resize()).observe(canvas);
 function frame(now){
   const elapsed=Math.min(.1,(now-last)/1000);last=now;
-  if(started&&!paused&&!manual.open&&!debrief.open&&document.visibilityState==='visible'){
+  if(started&&!paused&&!manual.open&&!debrief.open&&!suitBay.open&&document.visibilityState==='visible'){
     accumulator+=elapsed;
     while(accumulator>=1/60){step(state,{...input,jump:input.jump||jumpQueued},1/60);jumpQueued=false;accumulator-=1/60;}
     consumeEvents();

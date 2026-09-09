@@ -1,4 +1,5 @@
 import { WORLD } from './world.mjs';
+import { suitFrameRect, suitSheetState, houndFrameRect, houndSheetState } from './sprites.mjs';
 
 const C={sky:'#0b1425',far:'#111e32',back:'#18283d',metal:'#304359',edge:'#586579',cyan:'#69e9d8',gold:'#f7c56f',lime:'#d4f875',pink:'#eb6f91'};
 const noise=(n)=>{const s=Math.sin(n*127.1+311.7)*43758.5453;return s-Math.floor(s)};
@@ -54,15 +55,46 @@ export function createRenderer(canvas){
   }
   function crate(c,t){rect(c.x,c.y,c.w,c.h,'#172c3a');rect(c.x+1,c.y+1,c.w-2,c.h-2,c.charge>0?'#396875':'#465762');rect(c.x+4,c.y+4,c.w-8,c.h-8,'#293e4c');line(c.x+4,c.y+4,c.x+c.w-5,c.y+c.h-5,'#6d8186',2);line(c.x+c.w-5,c.y+4,c.x+4,c.y+c.h-5,'#6d8186',2);rect(c.x+2,c.y+2,3,3,C.gold);rect(c.x+c.w-5,c.y+c.h-5,3,3,C.gold);if(c.charge>0){glow(c.x+12,c.y+12,35,'#71dfff44');g.strokeStyle=C.cyan;g.lineWidth=1;g.strokeRect(c.x-2,c.y-2,c.w+4,c.h+4);const o=Math.floor(t*12)%4;line(c.x-6,c.y+o*6,c.x-10,c.y+o*6+4,C.cyan);line(c.x+c.w+3,c.y+8,c.x+c.w+8,c.y+4,C.cyan)}}
   function gate(state,t){const a=WORLD.gate;rect(a.x-8,a.y-13,a.w+16,13,'#4e5460');rect(a.x-8,a.y-13,a.w+16,3,'#d69e67');rect(a.x-7,a.y,a.w+14,a.h,'#152735');if(!state.gate.open){rect(a.x,a.y,a.w,a.h,'#543f47');for(let y=a.y+2;y<a.y+a.h;y+=12){rect(a.x+2,y,a.w-4,5,'#77616b');rect(a.x+2,y+5,a.w-4,2,'#242b3b')}rect(a.x+11,a.y+35,6,17,C.pink);glow(a.x+14,a.y+43,50,'#eb6f9133')}else{for(let y=a.y;y<a.y+22;y+=5)rect(a.x,y,a.w,3,'#527879');line(a.x+2,a.y+26,a.x+2,a.y+a.h,'#69e9d855');text('OPEN',a.x-2,a.y-21,C.cyan,8)}const r=WORLD.relay;line(r.x,r.y,a.x+14,a.y+92,'#4c7180',2);rect(r.x-10,r.y-16,20,30,'#243b4b');rect(r.x-7,r.y-13,14,16,'#0d2030');rect(r.x-4,r.y-10,8,10,state.gate.open?C.cyan:C.pink);rect(r.x-6,r.y+7,12,3,C.gold);text('RELAY',r.x-16,r.y-23,'#d6b284',7);if(!state.gate.open)text('NO SIGNAL',a.x-16,a.y-22,'#c6798a',7)}
-  function drone(d,t){const x=d.x,y=d.y+Math.sin(t*3)*2; if(!d.stunned){g.fillStyle='#ed789208';g.beginPath();g.moveTo(x+14,y+13);g.lineTo(x-28,y+60);g.lineTo(x+56,y+60);g.fill()}rect(x-5,y+3,38,4,'#223343');rect(x-8,y+1,8,3,'#a1adb1');rect(x+28,y+1,8,3,'#a1adb1');rect(x+2,y,24,12,'#6c7788');rect(x+6,y-3,16,3,'#919cad');rect(x+4,y+3,20,6,'#182834');rect(x+10,y+5,8,2,d.stunned?'#6993a4':C.pink);rect(x+7,y+12,14,3,'#314558');if(d.stunned){text('OFFLINE',x-6,y-10,C.cyan,6);if(Math.floor(t*7)%2)line(x+15,y-5,x+19,y-13,C.cyan)}else glow(x+14,y+6,28,'#ec698722')}
-  function player(p,selected,t){
+  /** Draws source rect `r` from `sheetState.img` into the local dest box, or a plain colored
+   *  fallback rect if the sheet failed or hasn't loaded yet (or drawImage itself throws) — a
+   *  sprite render must never leave the player or hound invisible or throw uncaught. The source
+   *  sheets have a near-black cell background behind each character; drawing it with 'lighten'
+   *  compositing instead of the default 'source-over' means that background contributes nothing
+   *  wherever the scene underneath is already lighter (which it always is here), so the sprite
+   *  reads as cut out rather than pasted inside a visible dark tile — no edit to either sheet. */
+  function sprite(sheetState,r,dx,dy,dw,dh,fallbackColor){
+    if(sheetState.ready&&!sheetState.failed){
+      const prevOp=g.globalCompositeOperation;
+      try{g.globalCompositeOperation='lighten';g.drawImage(sheetState.img,r.x,r.y,r.w,r.h,dx,dy,dw,dh);return;}
+      catch{}
+      finally{g.globalCompositeOperation=prevOp;} // must restore even on throw, or every later draw this frame stays in lighten mode
+    }
+    rect(dx,dy,dw,dh,fallbackColor);
+  }
+  function hound(d,t,reducedMotion){
+    // Feet stay pinned to d.y+d.h always — no floating sine bob, in any motion mode.
+    const x=d.x,y=d.y;
+    const pose=d.stunned>0?'idle':d.attack>0?'attack':'walk';
+    const frame=reducedMotion||pose!=='walk'?0:Math.floor(t*10)%3;
+    const r=houndFrameRect(pose,frame);
+    const dw=d.w,dh=r.h*(d.w/r.w);
+    g.save();if(d.stunned>0)g.globalAlpha=.55;
+    g.translate(x+d.w/2,y+d.h);g.scale(-d.direction,1); // Ember's sheet samples face left, unlike the player's right-facing row
+    sprite(houndSheetState(),r,-dw/2,-dh,dw,dh,'#7a4030');
+    g.restore();g.globalAlpha=1;
+    if(d.stunned>0){text('OFFLINE',x-6,y-dh-8,C.cyan,6);if(Math.floor(t*7)%2)line(x+d.w*.6,y-dh-2,x+d.w*.6+4,y-dh-10,C.cyan)}else glow(x+d.w/2,y+d.h*.5,26,'#ec698722')
+  }
+  function player(p,selected,t,reducedMotion){
     const x=Math.round(p.x),y=Math.round(p.y);if(p.invulnerable>0&&Math.floor(t*14)%2===0)g.globalAlpha=.45;
     if(p.grapple){line(x+9,y+10,p.grapple.x,p.grapple.y,'#c9bb87',1);line(x+9,y+11,p.grapple.x+1,p.grapple.y+1,'#edc46d33',2)}
     glow(x+9,y+12,32,'#a9e99620');
     g.save();g.translate(x+9,y);g.scale(p.facing,1);
-    const walk=p.grounded?Math.sin(t*13)*Math.min(3,Math.abs(p.vx)/50):0;
-    // Every block is hand placed: backpack, legs, plated torso, visor, arms.
-    rect(-11,9,6,14,'#263944');rect(-12,10,2,8,selected==='emp'?C.cyan:'#5c8290');rect(-7,19,6,8,'#4a6163');rect(2,19,6,8,'#596e68');rect(-8+walk,26,7,4,'#8a9b86');rect(2-walk,26,8,4,'#bac39c');rect(-7,20,3,5,'#84917d');rect(4,20,2,5,'#adb899');rect(-8,8,16,13,'#719081');rect(-5,9,11,8,'#b2bc92');rect(-3,10,7,2,C.lime);rect(-8,18,15,4,'#253b43');rect(-6,2,14,9,'#b6c19b');rect(-4,0,10,3,'#779585');rect(-5,5,14,4,'#173e47');rect(1,5,9,3,'#9bf0cf');rect(8,5,2,2,'#f1ffe5');rect(7,10,5,7,'#739086');rect(10,13,4,6,selected==='magnet'?C.gold:selected==='emp'?C.cyan:'#b7b98e');rect(-9,11,4,9,'#52726b');rect(-8,19,4,3,'#beca99');
+    const moving=p.grounded&&Math.abs(p.vx)>8;
+    const frame=reducedMotion||!moving?0:Math.floor(t*9)%4;
+    const r=suitFrameRect(p.suitId,'right',frame);
+    const dw=r.w,dh=r.h,dx=-dw/2-1,dy=30-dh;
+    sprite(suitSheetState(),r,dx,dy,dw,dh,'#5c8290');
+    if(selected==='magnet'||selected==='emp')rect(9,13,3,3,selected==='magnet'?C.gold:C.cyan);
     if(!p.grounded){rect(-9,22,3,3,'#e6c584');if(Math.floor(t*20)%2)rect(-9,25,2,4,'#6ec8c2')}
     g.restore();g.globalAlpha=1;
     if(p.holding){const cX=p.x+9+p.facing*29;line(p.x+9,p.y+16,cX,p.y+17,'#edc46d88');line(p.x+10,p.y+12,cX,p.y+8,'#edc46d55');}
@@ -77,14 +109,14 @@ export function createRenderer(canvas){
     g.save();g.translate(-Math.round(cx),-Math.round(cy));
     scenery(t);platforms();anchors(state,selected,t);gate(state,t);goal(state,t);
     for(const c of state.crates)crate(c,t);
-    drone(state.drone,t);player(p,selected,t);
+    hound(state.hound,t,reducedMotion);player(p,selected,t,reducedMotion);
     for(const e of particles){const life=e.life/e.max;g.globalAlpha=Math.max(0,life);if(e.ring){g.strokeStyle=e.color;g.lineWidth=2;g.beginPath();g.arc(e.x,e.y,e.radius*(1-life)+8,0,Math.PI*2);g.stroke()}else rect(e.x,e.y,e.size||2,e.size||2,e.color)}g.globalAlpha=1;
     // Foreground moisture and illuminated puddles; no collision hidden in art.
     for(let i=0;i<18;i++){const x=i*117+noise(i)*60;rect(x,589,40+noise(i+6)*55,2,i%3?'#57949b33':'#d4bb8133');rect(x+8,594,22,1,'#6aa5b222')}
     g.restore();
     if(!reducedMotion){g.strokeStyle='#a0cee528';g.lineWidth=1;g.beginPath();for(let i=0;i<65;i++){const x=(noise(i+54)*width+t*28)%width,y=(noise(i+13)*height+t*(140+noise(i)*70))%height;g.moveTo(x,y);g.lineTo(x-3,y+10)}g.stroke()}
     // Tiny camera telemetry belongs to the world view.
-    text(`X ${String(Math.round(p.x)).padStart(4,'0')}  /  SUIT 07`,10,height-10,'#819da66b',6);
+    text(`X ${String(Math.round(p.x)).padStart(4,'0')}  /  ${(p.suitId||'').toUpperCase()}`,10,height-10,'#819da66b',6);
   }
   return {draw,resize,getCamera:()=>({x:cx,y:cy,width,height})};
 }

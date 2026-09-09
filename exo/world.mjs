@@ -15,6 +15,6 @@ export const WORLD = {
   crates: [{id:'scrap-a',x:208,y:560},{id:'scrap-b',x:608,y:560},{id:'scrap-c',x:1120,y:560},{id:'scrap-d',x:1344,y:560}],
   gate: {x:1552,y:448,w:28,h:136},
   relay: {x:1508,y:552},
-  drone: {x:1060,y:536,minX:820,maxX:1450,speed:64},
+  hound: {x:1060,y:554,minX:1010,maxX:1450,speed:64},
   goal: {x:1888,y:528,w:40,h:56}
 };

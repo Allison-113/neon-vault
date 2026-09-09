@@ -7,6 +7,16 @@ const tick = (s,input={},count=1) => { for(let i=0;i<count;i++) step(s,input,1/6
 const overlaps = (a,b) => a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
 function at(s,x,y) { Object.assign(s.player,{x,y,vx:0,vy:0,grounded:false}); return s; }
 
+test('hound patrol stays grounded, turns, attacks, and recovers after EMP', () => {
+  const s=createState(), h=s.hound;
+  h.x=WORLD.hound.maxX;tick(s);assert.equal(h.direction,-1);
+  h.x=WORLD.hound.minX;tick(s);assert.equal(h.direction,1);
+  tick(s,{},600);assert.equal(h.y+h.h,584);assert.ok(h.x>=1010 && h.x<=1450);
+  at(s,h.x,h.y);tick(s);assert.ok(h.attack>0);assert.equal(s.player.invulnerable,1.5);
+  useModule(s,'emp');const x=h.x;tick(s,{},120);assert.equal(h.x,x);assert.equal(h.attack,0);
+  at(s,80,540);tick(s,{},300);assert.ok(h.x!==x);assert.equal(h.stunned,0);
+});
+
 test('fresh state preserves API and isolates mutable data from WORLD and reset', () => {
   const before = JSON.stringify(WORLD), a = createState(), b = reset();
   assert.deepEqual(a,b);
@@ -85,19 +95,19 @@ test('magnet cannot pick up through gate; held scrap clips and thrown scrap cann
   assert.ok(c.x+c.w <= WORLD.gate.x);
 });
 
-test('EMP charges held and nearby scrap and stuns drone; combinations survive switching', () => {
+test('EMP charges held and nearby scrap and stuns hound; combinations survive switching', () => {
   const s = at(createState(),1080,550);
   assert.equal(useModule(s,'magnet'),true);
   const id = s.player.holding;
   assert.equal(useModule(s,'emp'),true);
   assert.equal(s.player.holding,id);
   assert.equal(s.crates.find(c=>c.id===id).charge,10);
-  assert.equal(s.drone.stunned,6);
+  assert.equal(s.hound.stunned,6);
   assert.ok(s.discoveries.includes('charged-scrap'));
   assert.equal(s.stats.pulses,1);
-  const droneX = s.drone.x;
+  const houndX = s.hound.x;
   tick(s,{},30);
-  assert.equal(s.drone.x,droneX);
+  assert.equal(s.hound.x,houndX);
   assert.ok(s.crates.find(c=>c.id===id).charge < 10);
   assert.equal(useModule(s,'grapple'),true);
   assert.equal(s.player.holding,id);
@@ -123,12 +133,12 @@ test('charged scrap powers relay, consumes charge and expires gate without trapp
   assert.equal(s.discoveries.filter(d=>d==='relay-bypass').length,1);
 });
 
-test('charged moving scrap stuns drone for eight seconds and records a spark', () => {
+test('charged moving scrap stuns hound for eight seconds and records a spark', () => {
   const s = createState(), c = s.crates[0];
-  Object.assign(c,{x:s.drone.x-20,y:s.drone.y,vx:480,vy:0,charge:10});
+  Object.assign(c,{x:s.hound.x-20,y:s.hound.y,vx:480,vy:0,charge:10});
   tick(s);
-  assert.equal(s.drone.stunned,8);
-  assert.ok(s.events.some(e=>e.type==='spark' && e.text.includes('drone')));
+  assert.equal(s.hound.stunned,8);
+  assert.ok(s.events.some(e=>e.type==='spark' && e.text.includes('hound')));
 });
 
 test('grapple range, pull, normal wall collision, timeout and release', () => {
@@ -166,8 +176,8 @@ test('sky route and extraction discoveries are unique; win only emits once', () 
   assert.ok(s.player.x < x);
 });
 
-test('drone tags once per invulnerability window, regenerates battery, never kills', () => {
-  const s = at(createState(),WORLD.drone.x,WORLD.drone.y);
+test('hound tags once per invulnerability window, regenerates battery, never kills', () => {
+  const s = at(createState(),WORLD.hound.x,WORLD.hound.y);
   tick(s);
   assert.equal(s.player.energy,85);
   assert.equal(s.player.invulnerable,1.5);

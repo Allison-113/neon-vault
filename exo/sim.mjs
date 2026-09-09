@@ -12,9 +12,9 @@ export function createState() {
   return {
     time:0,
     player:{...WORLD.spawn, vx:0, vy:0, w:18, h:30, facing:1, grounded:false,
-      energy:100, holding:null, grapple:null, invulnerable:0},
+      energy:100, holding:null, grapple:null, invulnerable:0, suitId:'infernex'},
     crates:WORLD.crates.map(c => ({...c, w:24, h:24, vx:0, vy:0, charge:0, held:false})),
-    drone:{x:WORLD.drone.x, y:WORLD.drone.y, w:28, h:14, stunned:0, direction:1},
+    hound:{x:WORLD.hound.x, y:WORLD.hound.y, w:46, h:30, stunned:0, direction:1, attack:0},
     gate:{open:false, timer:0}, discoveries:[], events:[], won:false,
     stats:{throws:0, pulses:0, grapples:0}, cooldowns:{magnet:0, grapple:0, emp:0},
     _jumpHeld:false,
@@ -150,7 +150,7 @@ export function useModule(s, module) {
     }
   } else if (module === 'emp') {
     s.stats.pulses++;
-    if (distance(pc,center(s.drone)) <= 170) s.drone.stunned = Math.max(s.drone.stunned,6);
+    if (distance(pc,center(s.hound)) <= 170) s.hound.stunned = Math.max(s.hound.stunned,6);
     for (const c of s.crates) {
       if (c.id === p.holding || distance(pc,center(c)) <= 170) {
         c.charge = 10;
@@ -181,7 +181,7 @@ export function step(s, input = {}, dt = 0) {
   dt = Number.isFinite(dt) ? clamp(dt,0,0.033) : 0;
   if (!dt) return s;
   input = input || {};
-  const p = s.player, d = s.drone;
+  const p = s.player, d = s.hound;
   s.time += dt;
   p.energy = Math.min(100,p.energy+12*dt);
   p.invulnerable = decay(p.invulnerable,dt);
@@ -232,11 +232,12 @@ export function step(s, input = {}, dt = 0) {
   if (p.holding) followHeld(s);
 
   const wasStunned = d.stunned > 0;
+  d.attack = decay(d.attack,dt);
   d.stunned = decay(d.stunned,dt);
   if (!wasStunned) {
-    d.x += d.direction*WORLD.drone.speed*dt;
-    if (d.x >= WORLD.drone.maxX) { d.x = WORLD.drone.maxX; d.direction = -1; }
-    if (d.x <= WORLD.drone.minX) { d.x = WORLD.drone.minX; d.direction = 1; }
+    d.x += d.direction*WORLD.hound.speed*dt;
+    if (d.x >= WORLD.hound.maxX) { d.x = WORLD.hound.maxX; d.direction = -1; }
+    if (d.x <= WORLD.hound.minX) { d.x = WORLD.hound.minX; d.direction = 1; }
   }
   for (const c of s.crates) {
     if (c.charge > 0 && distance(center(c),WORLD.relay) <= 54) {
@@ -246,18 +247,19 @@ export function step(s, input = {}, dt = 0) {
       discover(s,'relay-bypass',WORLD.relay,'Relay bypass: charged scrap powers the gate.');
     }
     const touching = !c.held && overlap(c,d);
-    if (touching && !c._droneContact && c.charge > 0 && Math.hypot(c.vx,c.vy) > 40) {
+    if (touching && !c._houndContact && c.charge > 0 && Math.hypot(c.vx,c.vy) > 40) {
       d.stunned = Math.max(d.stunned,8);
-      event(s,'spark',c.x,c.y,'Charged scrap shorted the patrol drone.');
+      event(s,'spark',c.x,c.y,'Charged scrap shorted the patrol hound.');
     }
-    c._droneContact = touching;
+    c._houndContact = touching;
   }
   if (!d.stunned && !p.invulnerable && overlap(p,d)) {
+    d.attack = 0.45;
     p.energy = Math.max(0,p.energy-15);
     p.invulnerable = 1.5;
     p.vx = center(p).x < center(d).x ? -220 : 220;
     p.vy = -100;
-    event(s,'tag',p.x,p.y,'Drone tag. Suit integrity protected; battery drained.');
+    event(s,'tag',p.x,p.y,'Hound tag. Suit integrity protected; battery drained.');
   }
   const pc = center(p);
   if (pc.x > WORLD.gate.x+WORLD.gate.w && p.y+p.h < WORLD.gate.y+10) {
